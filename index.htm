@@ -1,0 +1,64 @@
+<html>
+<head>
+</head>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+	<script src="js/three.min.js"></script>
+	<script src="js/test.js"></script>
+
+
+	<style>
+	body {
+		background-color:#000;
+	}
+	#container{
+		width:400px;
+		height:300px;
+		background: #000;
+		border:solid 1px #000;
+	}
+	.moveButton {
+		display: none;
+		font-size: 5em;
+		text-align: center;
+		margin-bottom: 1em;
+		width: 2em;
+		height: 2em;
+		font-weight: bold;
+		position: absolute;
+		bottom: 5px;
+		border: outset 2px #fff;
+
+    -webkit-border-radius: 50%;
+    -moz-border-radius: 50%;
+    border-radius: 50%;
+
+    background: #c0c0c0;
+	}
+	.moveButton > p {
+		margin-top: .5em;
+	}
+	#leftButton {
+		left: 5px;
+	}
+	#rightButton {
+		right: 5px;
+	}
+	</style>
+
+<body>
+
+	<audio id="soundClick0" src="sounds/click2.wav" type="audio/wav"></audio>
+	<audio id="soundClick1" src="sounds/click3.wav" type="audio/wav"></audio>
+	<audio id="soundClick2" src="sounds/click4.wav" type="audio/wav"></audio>
+	<audio id="soundClick3" src="sounds/click3.wav" type="audio/wav"></audio>
+	<audio id="soundClick4" src="sounds/click0.wav" type="audio/wav"></audio>
+	<audio id="soundClick5" src="sounds/click1.wav" type="audio/wav"></audio>
+	<audio id="soundBump"  src="sounds/bump.wav"  type="audio/wav"></audio>
+	<audio id="soundWall"  src="sounds/wall.wav"  type="audio/wav"></audio>
+
+	<div id="container">
+		<div id="leftButton"  class="moveButton"><p>&lt;</p></div>
+		<div id="rightButton" class="moveButton"><p>&gt;</p></div>
+	</div>
+</body>
+</html>
