@@ -42,6 +42,9 @@ $().ready(function () {
     // An array of targets to hit
       targets = [],
 
+    // Balls array, add items as they are added to the scene
+      balls = [],
+
     // The size of the ball (the radius)
       ballSize = 3,
 
@@ -68,7 +71,7 @@ $().ready(function () {
       totalObjects = 100,
       objectSize = 10,
       sizeRandomness = 40000,
-      lifetime = 500,
+      lifetime = 300,
 
       dirs = [],
       parts = [],
@@ -104,20 +107,11 @@ $().ready(function () {
       cameraTarget = new THREE.Vector3(0, 150, 0),
       
     // Some light
-      light = new THREE.DirectionalLight(0xffffff, 1),
+      light = new THREE.DirectionalLight(0xffffff, .5),
       light2 = new THREE.PointLight(0xffffff, 1, 3000),
 
     // the paddle to hit the ball with
-      paddle = new THREE.Mesh(
-        new THREE.CubeGeometry(paddleWidth, 1, 10),
-        new THREE.MeshPhongMaterial( {color: 0x00ff00} )
-      ),
-
-    // The ball
-      ball = new THREE.Mesh(
-        new THREE.SphereGeometry(ballSize, 32, 32),
-        new THREE.MeshPhongMaterial( {color: 0xffff00} )
-      ),
+      paddle = null,
 
     // A tracker if keys are being pressed
       keys = {
@@ -134,7 +128,7 @@ $().ready(function () {
       ],
 
     // A sequence to use camera angles
-      introCamera = function (startLocation, endLocation) {
+      introCamera = function (startLocation, endLocation, onFinish) {
         $({alpha: 0}).animate({alpha: 1}, {
           duration: 5000,
           step: function() {
@@ -144,30 +138,16 @@ $().ready(function () {
           always: function () {
             camera.position = endLocation;
             camera.lookAt(cameraTarget);
-            // unpause the game
-            gameState = 1;
+            if (typeof onFinish === 'function') {
+              onFinish()
+            }
           }
         });
       },
 
-    // Script for moving the paddle
-      movePaddle = function (moveDiff) {
-        paddle.moving = moveDiff;
-        if (moveDiff !== 0) {
-          // move the paddle by that amount
-          if (moveDiff < 0 && borders.left < paddle.position.x + moveDiff - paddleWidth / 2) {
-            paddle.position.x -= paddleMoveRate * timeSegment;
-          } else if(moveDiff > 0 && borders.right > paddle.position.x + moveDiff + paddleWidth / 2) {
-            paddle.position.x += paddleMoveRate * timeSegment;
-          }
-        }
-        camera.position.x = paddle.position.x * .8;
-        camera.lookAt(cameraTarget);
-      },
-
       cursorMove = function (e) {
         if (gameState === 1) {
-          movePaddle(-(paddle.lastx - e.x));
+          paddle.movePaddle(-(paddle.lastx - e.x));
           paddle.lastx = e.x;
         }
       },
@@ -189,46 +169,135 @@ $().ready(function () {
     // Handle user keyboard controls
       doKeys = function () {
         if (keys.left === 1) {
-          movePaddle(-paddleMoveRate * timeSegment);
+          paddle.movePaddle(-paddleMoveRate * timeSegment);
         } else if (keys.right === 1) {
-          movePaddle(paddleMoveRate * timeSegment);
+          paddle.movePaddle(paddleMoveRate * timeSegment);
+        }
+      },
+
+    // Main loop for active game session
+    // called every render sequence
+      runGame = function () {
+        doKeys();
+
+        this.bCount = balls.length;
+        while (this.bCount --) {
+          // Run onRender on each ball
+          if (typeof balls[this.bCount].object.onRender === 'function') {
+            balls[this.bCount].object.onRender();
+          }
+          // Run checkCollisions on each ball
+          if (typeof balls[this.bCount].object.checkCollision === 'function') {
+            balls[this.bCount].object.checkCollision();
+          }
+        }
+
+        // Run onRender on each target
+        this.tCount = targets.length;
+        while (this.tCount --) {
+          if (typeof targets[this.tCount].onRender === 'function') {
+            targets[this.tCount].onRender();
+          }
+        }
+
+        // Explosion particle animation
+        this.pCount = parts.length;
+        while (this.pCount--) {
+          parts[this.pCount].update();
         }
       },
 
     // The render engine
       render = function () {
         // The moment the render sequence is called
-        var renderTime = Date.now();
+        this.renderTime = Date.now();
 
         // The length of time since the last render sequence
-        // This can be used to linear interpolate the movement
-        timeSegment = (renderTime - currentMs) / 1000;
+        // This can be used to linear interpolate movements
+        timeSegment = (this.renderTime - currentMs) / 1000;
 
         // Then assign the render time to the current time
-        currentMs = renderTime;
+        currentMs = this.renderTime;
 
         // These statements tell the browser to start doing its animation loop
         // it will call this according to how it calls render sequences
         requestAnimationFrame(render);
         renderer.render(scene, camera);
 
-        // Apply the momentum to the ball if the game isn't paused
         if (gameState === 1) {
-          doKeys();
-          // The momentum is the rate of movement per second
-          ball.position.x += ball.momentum.x * timeSegment;
-          ball.position.y += ball.momentum.y * timeSegment;
-
-          pCount = parts.length;
-          while (pCount--) {
-            parts[pCount].update();
-          }
+          runGame();
         }
-        // detect any collision
-        detectCollision(ball);
 
         // Reset the tracker about the paddle moving or not
         paddle.moving = 0;
+      },
+
+    // A functional ball
+      ball = function (options) {
+        var self = this;
+        // clean and set the options for the ball
+        options          = options          || {};
+        options.radius   = options.radius   || ballSize;
+        options.color    = options.color    || 0xffff00;
+        options.momentum = options.momentum || new THREE.Vector3(ballMoveRate / 3, -ballMoveRate, 0);
+        options.position = options.position || new THREE.Vector3();
+
+        // Assign the mesh
+        this.object = new THREE.Mesh(
+          new THREE.SphereGeometry(options.radius, 32, 32),
+          new THREE.MeshPhongMaterial( {color: options.color} )
+        );
+
+        // Assign position
+        this.object.position = options.position;
+
+        // Assign the momentum attribute
+        this.object.momentum = options.momentum;
+
+        // The debounce is to keep collisions from being called multiple times
+        this.object.debounce = currentMs;
+
+        // These are the impact rays to use for ball collision detection
+        // note that there are no z index rays, since balls will always be impacting
+        // at the existing height
+        this.object.rays = [
+          new THREE.Vector3(1, 0, 0),
+          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3(1, 1, 0),
+          new THREE.Vector3(-1, 0, 0),
+          new THREE.Vector3(0, -1, 0),
+          new THREE.Vector3(-1, -1, 0)
+        ]
+        this.object.caster = new THREE.Raycaster();
+
+        // A function to reverse momentum
+        this.object.reverse = function (axis) {
+          self.object.debounce = currentMs + 50;
+          self.object.momentum[axis] = -self.object.momentum[axis];
+        };
+
+        // Attach a collider to the ball by having it check for collisions
+        this.object.checkCollision = function () {
+          detectCollision(self.object);
+        }
+
+        // A function to handle collisions
+        this.object.onCollide = function (collision) {
+          // @todo invoke any onCollide function available on the target
+          console.log('Ball onCollide', collision);
+
+        };
+
+        // Run on each render
+        this.object.onRender = function () {
+          // The momentum is the rate of movement per second
+          // So the animation for this item is to move it by its momentum
+          self.object.position.x += self.object.momentum.x * timeSegment;
+          self.object.position.y += self.object.momentum.y * timeSegment;
+        };
+
+        // finally, add the object to the scene
+        scene.add(this.object);
       },
 
       /**
@@ -322,7 +391,7 @@ $().ready(function () {
       buildLevel = function (levelSpec)
       {
         // Assign the argument as an object if its null
-        levelSpec = levelSpec || {};
+        levelSpec         = levelSpec || {};
         levelSpec.targets = levelSpec.targets || [];
 
         // Create the walls and ceiling lines
@@ -342,30 +411,20 @@ $().ready(function () {
 
         // Add the default targets
         if (levelSpec.targets.length === 0) {
-          for (var x = 0; x < 18; x++) {
-            for (var y = 1; y < 15; y++) {
-              targets.push(new target({
-                row:        y,
-                column:     x,
-                size:       new THREE.Vector3(targetWidth, targetHeight, targetHeight * 2),
-                material:   new THREE.MeshPhongMaterial({
-                              color:     colors[x],
-                              specular:  0x000000,
-                              shininess: 90}),
-                onCollide:  function (collided, projector) {
-                  var targetIndex = getTargetIndex(collided);
-                    if (targetIndex !== -1) {
-                      destroyTarget(targetIndex);
-                    }
-                  // If the point of contact is to the side, it should reverse
-                  // on the x axis instead of the y axis for this collision
-                  if (Math.abs(projector.x) && !Math.abs(projector.y)) {
-                    reverseBall('x');
-                  } else {
-                    reverseBall('y');
-                  }
-                }
-              }).object);
+          for (var x = 0; x < 18; x+=2) {
+            for (var y = 7; y < 15; y++) {
+              for (var z = 0; z < 3; z++) {
+                targets.push(new target({
+                  row:        (y * 2) - (z * 3),
+                  column:     x,
+                  depth:      z, 
+                  size:       new THREE.Vector3(targetWidth, targetHeight, targetHeight * 2),
+                  material:   new THREE.MeshPhongMaterial({
+                                color:     colors[x],
+                                specular:  0xffffff,
+                                shininess: 98})
+                }).object);
+              }
             }
           }
         } else {
@@ -429,26 +488,112 @@ $().ready(function () {
         this.object.row    = (typeof targetOptions.row === 'number')
                               ? targetOptions.row
                               : 1;
-        this.object.column = (typeof targetOptions.row === 'number')
+        this.object.column = (typeof targetOptions.column === 'number')
                               ? targetOptions.column
                               : 5;
+
+        this.object.depth = (typeof targetOptions.depth === 'number')
+                              ? targetOptions.depth
+                              : 0;
+
 
         // Reposition target according to row/column settings
         // @todo This needs a centering mechanism which isn't manual -Belin
         this.object.position.y = 300 - this.object.row * (targetHeight + 2);
         this.object.position.x = -160 + this.object.column * (targetWidth + 2);
+        this.object.position.z = this.object.depth * 50;
+
 
         // This will be called by the render phase on each pass
-        this.update = function () {
+        this.onRender = function () {
           // @todo add some sparklies or some such shit
         }
 
         // Call this when a collision is detected on this target
         this.object.onCollide = (typeof targetOptions.onCollide === 'function')
           ? targetOptions.onCollide
-          : function () {
-            console.log ('default collision function executed for ', this.object);
+          : function (collided, projector, ball) {
+            // Destroy this item
+            destroyTarget(this);
+            
+            // If the point of contact is to the side, it should reverse
+            // on the x axis instead of the y axis for this collision
+            if (Math.abs(projector.x) && !Math.abs(projector.y)) {
+              ball.reverse('x');
+            } else {
+              ball.reverse('y');
+            }
           };
+
+        scene.add(this.object);
+      },
+
+      makePaddle = function () {
+        var self = this;
+        this.object = new THREE.Mesh(
+          new THREE.CubeGeometry(paddleWidth, 1, 200),
+          new THREE.MeshPhongMaterial( {color: 0x00ff00} )
+        ),
+
+        // Add the paddle
+        this.object.position.y = -20;
+        this.object.position.z = 50;
+
+         // Control the paddle
+        this.lastx = 0;
+        this.moving = 0;
+
+        // Script for moving the paddle
+        this.movePaddle = function (moveDiff) {
+          // Convert moveDiff to a value scaled within paddleMoveRate
+          if (moveDiff < 0 && Math.abs(moveDiff) > paddleMoveRate) {
+            moveDiff = -paddleMoveRate;
+          } else if(moveDiff > 0 && moveDiff > paddleMoveRate) {
+            moveDiff = paddleMoveRate;
+          }
+
+          this.moving = moveDiff;
+
+          this.object.rotation.z = -moveDiff * .01;
+          
+          if (moveDiff !== 0) {
+            // move the paddle by that amount
+            if (moveDiff < 0 && borders.left < this.object.position.x + moveDiff - paddleWidth / 2) {
+              this.object.position.x -= paddleMoveRate * timeSegment;
+            } else if(moveDiff > 0 && borders.right > this.object.position.x + moveDiff + paddleWidth / 2) {
+              this.object.position.x += paddleMoveRate * timeSegment;
+            }
+          }
+          camera.position.x = this.object.position.x * .8;
+          camera.lookAt(cameraTarget);
+        },
+
+        // The ball will call this on the paddle when it collides
+        this.object.onCollide = function (collided, projector, ball) {
+          console.log('paddleCollide');
+          // The maximum horizontal momentum
+          var maxSpeed = (ballMoveRate * .75),
+
+          // The proposed modification to the horizontal momentum
+            modSpeed = (ball.momentum.x + this.moving * 5);
+
+          // Reverse the vertical direction of the ball
+          ball.reverse('y');
+
+          // console.log('moving: %s, maxSpeed: %s, modSpeed: %s, current: %s', paddle.moving, maxSpeed, modSpeed, ball.momentum.x);
+
+          // if the platform is currently moving, make the ball reflect in that direction
+          if (paddle.moving >= 1) {
+            ball.momentum.x = Math.min(maxSpeed, modSpeed);
+          } else if (paddle.moving < -1) {
+            ball.momentum.x = Math.max(-maxSpeed, modSpeed);
+          }
+
+          // Play a bumping sound
+          if (sounds.bump.play) {
+            sounds.bump.play();
+          }
+        };
 
         scene.add(this.object);
       },
@@ -458,23 +603,19 @@ $().ready(function () {
        * 
        * @param integer targetIndex The array index of the item to be destroyed
        */
-      destroyTarget = function (targetIndex) {
-        var clickIndex = Math.floor(targets[targetIndex].column / 3);
-        
+      destroyTarget = function (target) {
         // Make the target explode
         parts.push(new ExplodeAnimation({
           position: new THREE.Vector3(
-            targets[targetIndex].position.x,
-            targets[targetIndex].position.y,
+            target.position.x,
+            target.position.y,
             0),
-          color: targets[targetIndex].material.color
+          color: target.material.color
         }));
         
-        scene.remove(targets[targetIndex]);
-        targets.splice(targetIndex, 1);
-        clickSound(clickIndex);
-
-        console.log('targets remaining: %s', targets.length);
+        scene.remove(target);
+        clickSound(Math.floor(target.column / 3));
+        targets.splice(getTargetIndex(target), 1);
       },
 
       clickSound = function (clickIndex) {
@@ -501,55 +642,22 @@ $().ready(function () {
         return -1;
       },
 
-      /**
-       * Operate the paddle
-       */
-      paddleBall = function () {
-        // The maximum horizontal momentum
-        var maxSpeed = (ballMoveRate * .75),
-
-        // The proposed modification to the horizontal momentum
-          modSpeed = (ball.momentum.x + paddle.moving * 5);
-
-        // Reverse the vertical direction of the ball
-        reverseBall('y');
-
-        // console.log('moving: %s, maxSpeed: %s, modSpeed: %s, current: %s', paddle.moving, maxSpeed, modSpeed, ball.momentum.x);
-
-        // if the platform is currently moving, make the ball reflect in that direction
-        if (paddle.moving >= 1) {
-          ball.momentum.x = Math.min(maxSpeed, modSpeed);
-        } else if (paddle.moving < -1) {
-          ball.momentum.x = Math.max(-maxSpeed, modSpeed);
-        }
-
-        // Play a bumping sound
-        if (sounds.bump.play) {
-          sounds.bump.play();
-        }
-
-      },
-
-      reverseBall = function (axis) {
-        debounce = currentMs + 50;
-        ball.momentum[axis] = -ball.momentum[axis];
-      },
-
-      detectCollision = function () {
+ 
+      detectCollision = function (ball) {
         var i, h;
         // Check for collision with the wall, reverse momentum if struck
-        if (debounce < currentMs) {
+        if (ball.debounce < currentMs) {
           if (ball.position.y > borders.top - ballSize
               || ball.position.y < borders.bottom + ballSize)
           {
-            reverseBall('y');
+            ball.reverse('y');
 
             // Play wall sound
             sounds.wall.play();
           }
           if (ball.position.x < borders.left + ballSize
             || ball.position.x > borders.right - ballSize) {
-            reverseBall('x');
+            ball.reverse('x');
 
             // Play wall sound
             sounds.wall.play();
@@ -557,46 +665,71 @@ $().ready(function () {
         }
 
         // Test if we intersect with any obstacle mesh
-        // @todo may need to add a debounce to target collision
 
-
-        // Check for collision with any targets
+        // Check for collision with any targets and the paddle
         for (i = 0; i < ball.rays.length; i += 1) {
           // We reset the raycaster to this direction
           ball.caster.set(ball.position, ball.rays[i]);
 
-          // Test for the paddle mesh
-          if (paddle.debounce < currentMs) {
-            collisions = ball.caster.intersectObject(paddle);
-            for (h in collisions) {
-              if (collisions[h].distance < ballSize) {
-                paddle.debounce = currentMs + 50;
-                paddleBall();
-              }
-            }
-          }
-
-          // Fast, but not ideal way to ensure this is an array
-          if (targets.length) {
-            collisions = ball.caster.intersectObjects(targets);
-          } else {
-            collisions = ball.caster.intersectObject(targets);
-          }
+          collisions = ball.caster.intersectObjects(targets);
 
           for (h in collisions) {
             if (collisions[h].distance < ballSize) {
               // If the object has a collision function, use it
               if (collisions[h].object && typeof collisions[h].object.onCollide === 'function') {
-                collisions[h].object.onCollide(collisions[h].object, ball.rays[i]);
+                collisions[h].object.onCollide(collisions[h].object, ball.rays[i], ball);
               } else if (typeof onCollide === 'function') {
                 // Else run the collision function passed in to this
-                onCollide(collisions[h].object, ball.rays[i]);
+                onCollide(collisions[h].object, ball.rays[i], ball);
+              } else {
+                console.log('no collider', collisions[h]);
               }
               break;
             }
           }
         }
+      },
+      doControls = function () {
+        // handle controls:    
+        window.onmousemove = function (e) {
+          cursorMove(e);
+        }
+
+        window.onkeydown = function (e) {
+          console.log(e);
+          if (e.keyCode === 39 || e.keyCode === 68) {
+            keys.right = 1;
+          } else if(e.keyCode === 37 || e.keyCode === 65) {
+            keys.left = 1;
+          }
+          if (e.keyCode === 80) {
+            if (gameState === 0) {
+              gameState = 1;
+            } else {
+              gameState = 0;
+            }
+          } 
+        }
+
+        window.onkeyup = function (e) {
+          paddle.moving = 0;
+          if (e.keyCode === 39 || e.keyCode === 68) {
+            keys.right = 0;
+          } else if(e.keyCode === 37 || e.keyCode === 65) {
+            keys.left = 0;
+          }
+        }
+
+        // mobile controls:
+        $('#container').bind('touchmove', function (e) {
+          e.preventDefault();
+          var touch = e.originalEvent.touches[0] || e.originalEvent.changedTouches[0];
+          touch.y = touch.pageY;
+          touch.x = touch.pageX;
+          cursorMove(touch);
+        });
       };
+    // End var declaration for main function body
 
     // Run the resizer and link it to the window resize event
     sizer();
@@ -610,7 +743,7 @@ $().ready(function () {
 
     // Add the lights
     light.position.z = 100;
-    light2.position.y = 100;
+    light2.position.y = 600;
     light2.position.z = 200;
     scene.add(light);
     scene.add(light2);
@@ -621,73 +754,38 @@ $().ready(function () {
     // attach the render-supplied DOM element
     $container.append(renderer.domElement);
 
-
     // Build the level (walls & targets)
     buildLevel();
 
-    // Add the ball momentum
-    ball.momentum = new THREE.Vector3(ballMoveRate / 3, -ballMoveRate, 0);
-    // These are the impact rays to use for ball collision detection
-    ball.rays = [
-      new THREE.Vector3(1, 0, 0),
-      new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3(1, 1, 0),
-      new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(0, -1, 0),
-      new THREE.Vector3(-1, -1, 0)
-    ]
-    ball.caster = new THREE.Raycaster();
-    scene.add(ball);
+    // Add a ball
+    balls.push(new ball());
 
-    // Add the paddle
-    paddle.position.y = -20;
-    scene.add(paddle);
+    balls.push(new ball({
+      position: new THREE.Vector3(20, 0, 50),
+      color: 0xff0000
+    }));
 
-    // Control the paddle
-    paddle.lastx = 0;
-    paddle.moving = 0;
-    paddle.debounce = 0;
+    balls.push(new ball({
+      position: new THREE.Vector3(20, 0, 100),
+      color: 0xff00ee
+    }));
 
-    window.onmousemove = function (e) {
-      cursorMove(e);
-    }
-
-    window.onkeydown = function (e) {
-      console.log(e);
-      if (e.keyCode === 39 || e.keyCode === 68) {
-        keys.right = 1;
-      } else if(e.keyCode === 37 || e.keyCode === 65) {
-        keys.left = 1;
-      }
-      if (e.keyCode === 80) {
-        if (gameState === 0) {
-          gameState = 1;
-        } else {
-          gameState = 0;
-        }
-      } 
-    }
-
-    window.onkeyup = function (e) {
-      paddle.moving = 0;
-      if (e.keyCode === 39 || e.keyCode === 68) {
-        keys.right = 0;
-      } else if(e.keyCode === 37 || e.keyCode === 65) {
-        keys.left = 0;
-      }
-    }
-
-    // mobile controls:
-    $('#container').bind('touchmove', function (e) {
-      e.preventDefault();
-      var touch = e.originalEvent.touches[0] || e.originalEvent.changedTouches[0];
-      touch.y = touch.pageY;
-      touch.x = touch.pageX;
-      cursorMove(touch);
-    });
-
+    // Add a paddle
+    paddle = new makePaddle();
+    targets.push(paddle.object);
+    
     // Do the fancy intro camera move
-    introCamera(new THREE.Vector3(0, 1000, 200), new THREE.Vector3(0, 150, 450));
+    introCamera(
+      new THREE.Vector3(0, 1000, 200),
+      new THREE.Vector3(0, 150, 550),
+      function () {
+        // unpause the game
+        gameState = 1;
+      }
+    );
+
+    // Set up the control events
+    doControls();
 
     // request new frame
     requestAnimationFrame(render);
