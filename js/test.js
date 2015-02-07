@@ -61,7 +61,7 @@ $().ready(function () {
       targetHeight = 5,
 
     // Maximum move rate of the paddle (per second)
-      paddleMoveRate = 200,
+      paddleMoveRate = 300,
 
     // Starting move rate of the ball (per second)
       ballMoveRate = 150,
@@ -267,12 +267,18 @@ $().ready(function () {
           new THREE.Vector3(-1, 0, 0),
           new THREE.Vector3(0, -1, 0),
           new THREE.Vector3(-1, -1, 0)
-        ]
+        ];
         this.object.caster = new THREE.Raycaster();
+
+        // This is the follow - shadow, to be shown on the paddle
+        this.object.shadow = new THREE.Sprite(new THREE.SpriteMaterial({color:options.color, fog:true}));
+        // default shadow caster is down
+        this.object.shadowRay = new THREE.Vector3(0, -1, 0);
+        this.object.shadowCaster = new THREE.Raycaster();
 
         // A function to reverse momentum
         this.object.reverse = function (axis) {
-          self.object.debounce = currentMs + 50;
+          self.object.debounce = currentMs + 100;
           self.object.momentum[axis] = -self.object.momentum[axis];
         };
 
@@ -294,10 +300,21 @@ $().ready(function () {
           // So the animation for this item is to move it by its momentum
           self.object.position.x += self.object.momentum.x * timeSegment;
           self.object.position.y += self.object.momentum.y * timeSegment;
+          // Project a shadow downward
+          self.object.shadowCaster.set(ball.position, ball.shadowRay);
+          // self.shadowTargets = ball.caster.intersectObjects(targets);
+
+          for (var h in self.shadowTargets) {
+            console.log('shadowTarget', self.shadowTargets[h]);
+            // get the location of the collision and then move the shadow sprite there
+
+          }
         };
 
         // finally, add the object to the scene
         scene.add(this.object);
+        // and the shadow
+        scene.add(this.object.shadow);
       },
 
       /**
@@ -307,7 +324,7 @@ $().ready(function () {
        *               position (Vector3) Where to place the explosion
        *               color    Hex What color to make the explosion
        */
-      ExplodeAnimation = function (options) {
+      explodeAnimation = function (options) {
         var geometry = new THREE.Geometry(),
           x = options.position.x || 0,
           y = options.position.y || 0,
@@ -420,7 +437,7 @@ $().ready(function () {
                   depth:      z, 
                   size:       new THREE.Vector3(targetWidth, targetHeight, targetHeight * 2),
                   material:   new THREE.MeshPhongMaterial({
-                                color:     colors[x],
+                                color:     colors[z*5 + Math.floor(x /3)],
                                 specular:  0xffffff,
                                 shininess: 98})
                 }).object);
@@ -496,7 +513,6 @@ $().ready(function () {
                               ? targetOptions.depth
                               : 0;
 
-
         // Reposition target according to row/column settings
         // @todo This needs a centering mechanism which isn't manual -Belin
         this.object.position.y = 300 - this.object.row * (targetHeight + 2);
@@ -548,13 +564,14 @@ $().ready(function () {
           // Convert moveDiff to a value scaled within paddleMoveRate
           if (moveDiff < 0 && Math.abs(moveDiff) > paddleMoveRate) {
             moveDiff = -paddleMoveRate;
+            this.object.rotation.z = Math.min(-moveDiff * .01, -0.1);
           } else if(moveDiff > 0 && moveDiff > paddleMoveRate) {
             moveDiff = paddleMoveRate;
+            this.object.rotation.z = Math.max(-moveDiff * .01, 0.1);
           }
 
           this.moving = moveDiff;
 
-          this.object.rotation.z = -moveDiff * .01;
           
           if (moveDiff !== 0) {
             // move the paddle by that amount
@@ -571,14 +588,21 @@ $().ready(function () {
         // The ball will call this on the paddle when it collides
         this.object.onCollide = function (collided, projector, ball) {
           console.log('paddleCollide');
-          // The maximum horizontal momentum
+          // The maximum horizontal momentum absolute value
           var maxSpeed = (ballMoveRate * .75),
 
+          // The current angle of the paddle
+            paddleDeg = self.object.rotation.z;
+
           // The proposed modification to the horizontal momentum
-            modSpeed = (ball.momentum.x + this.moving * 5);
+            modSpeed = ball.momentum.x + (ballMoveRate * -paddleDeg);
+          
+          console.log(paddleDeg);
 
           // Reverse the vertical direction of the ball
-          ball.reverse('y');
+          if (ball.momentum.y < 0) {
+            ball.reverse('y');
+          }
 
           // console.log('moving: %s, maxSpeed: %s, modSpeed: %s, current: %s', paddle.moving, maxSpeed, modSpeed, ball.momentum.x);
 
@@ -605,7 +629,7 @@ $().ready(function () {
        */
       destroyTarget = function (target) {
         // Make the target explode
-        parts.push(new ExplodeAnimation({
+        parts.push(new explodeAnimation({
           position: new THREE.Vector3(
             target.position.x,
             target.position.y,
