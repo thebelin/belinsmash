@@ -154,13 +154,23 @@ $().ready(function () {
 
     // handle Sizing:
       sizer = function () {
+        var marginLeft = 0,
+        marginTop = 0;
+
         // set the scene size
-        width  = window.innerWidth * .98;
-        height = window.innerHeight * .98;
+        if (window.innerWidth * .56 < window.innerHeight) {
+          width  = window.innerWidth * .98;
+          height = width * .56;
+          marginTop = (window.innerHeight - height) / 2;
+        } else {
+          height = window.innerHeight * .98;
+          width  = height * 1.7
+          marginLeft = (window.innerWidth - width) / 2;
+        }
 
         console.log({height: height + 'px', width: width + 'px'});
         //Make the container the game canvas size
-        $container.css({height: height + 'px', width: width + 'px'});
+        $container.css({height: height + 'px', width: width + 'px', 'margin-top': marginTop, 'margin-left': marginLeft});
   
         // re-start the renderer at the new size
         renderer.setSize(width, height);
@@ -273,8 +283,8 @@ $().ready(function () {
         // This is the follow - shadow, to be shown on the paddle
         this.object.shadow = new THREE.Sprite(new THREE.SpriteMaterial({color:options.color, fog:true}));
         // default shadow caster is down
-        this.object.shadowRay = new THREE.Vector3(0, -1, 0);
-        this.object.shadowCaster = new THREE.Raycaster();
+        //this.object.shadowRay = new THREE.Vector3(0, -1, 0);
+        //this.object.shadowCaster = new THREE.Raycaster();
 
         // A function to reverse momentum
         this.object.reverse = function (axis) {
