@@ -46,7 +46,7 @@ $().ready(function () {
       balls = [],
 
     // The size of the ball (the radius)
-      ballSize = 3,
+      ballSize = 5,
 
     // So we don't have to divide multiple times
       ballBorder = ballSize / 2,
@@ -301,7 +301,7 @@ $().ready(function () {
           self.object.position.x += self.object.momentum.x * timeSegment;
           self.object.position.y += self.object.momentum.y * timeSegment;
           // Project a shadow downward
-          self.object.shadowCaster.set(ball.position, ball.shadowRay);
+          // self.object.shadowCaster.set(ball.position, ball.shadowRay);
           // self.shadowTargets = ball.caster.intersectObjects(targets);
 
           for (var h in self.shadowTargets) {
@@ -418,7 +418,8 @@ $().ready(function () {
             new THREE.Vector3(borders.left, borders.bottom, wallCount * 10),
             new THREE.Vector3(borders.left, borders.top, wallCount * 10),
             new THREE.Vector3(borders.right, borders.top, wallCount * 10),
-            new THREE.Vector3(borders.right, borders.bottom, wallCount * 10)
+            new THREE.Vector3(borders.right, borders.bottom, wallCount * 10),
+            new THREE.Vector3(borders.left, borders.bottom, wallCount * 10)  
           );
           wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
             color: 0x0000ff, width:2
@@ -671,16 +672,33 @@ $().ready(function () {
         var i, h;
         // Check for collision with the wall, reverse momentum if struck
         if (ball.debounce < currentMs) {
-          if (ball.position.y > borders.top - ballSize
-              || ball.position.y < borders.bottom + ballSize)
-          {
+          if (ball.position.y > borders.top - ballSize) {
+            ball.position.y = borders.top - ballSize;
+
+            ball.reverse('y');
+
+            // Play wall sound
+            sounds.wall.play();
+          } else if(ball.position.y < borders.bottom + ballSize) {
+            //@todo This is the bottom wall,  so there probably should be an event here
+            ball.position.y = borders.bottom + ballSize;
+
             ball.reverse('y');
 
             // Play wall sound
             sounds.wall.play();
           }
-          if (ball.position.x < borders.left + ballSize
-            || ball.position.x > borders.right - ballSize) {
+          if (ball.position.x < borders.left + ballSize) {
+            ball.position.x = borders.left + ballSize;
+
+            ball.reverse('x');
+
+            // Play wall sound
+            sounds.wall.play();
+
+          } else if (ball.position.x > borders.right - ballSize) {
+            ball.position.x = borders.right - ballSize;
+
             ball.reverse('x');
 
             // Play wall sound
