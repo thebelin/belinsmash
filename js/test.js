@@ -145,9 +145,19 @@ $().ready(function () {
         });
       },
 
+      togglePause = function (forceState) {
+        if (forceState) {
+          gameState = 1;
+        } else {
+          gameState = 0;
+        }
+        $('#pauseIndicator').toggle(!gameState);
+      },
+
       cursorMove = function (e) {
         if (gameState === 1) {
-          paddle.movePaddle(-(paddle.lastx - e.x));
+          paddle.movePaddle(-(paddle.lastx - e.x), -(paddle.lasty - e.y));
+          paddle.lasty = e.y;
           paddle.lastx = e.x;
         }
       },
@@ -364,7 +374,7 @@ $().ready(function () {
         
         particles = new THREE.ParticleSystem(
           geometry,
-          new THREE.ParticleBasicMaterial( { size: objectSize,  color: color })
+          new THREE.ParticleBasicMaterial( { size: objectSize,  color: color, opacity: .7})
         );
         
         this.object = particles;
@@ -555,6 +565,10 @@ $().ready(function () {
         scene.add(this.object);
       },
 
+      /**
+       * Create the paddle
+       * @return {[type]} [description]
+       */
       makePaddle = function () {
         var self = this;
         this.object = new THREE.Mesh(
@@ -571,27 +585,58 @@ $().ready(function () {
         this.moving = 0;
 
         // Script for moving the paddle
-        this.movePaddle = function (moveDiff) {
+        this.movePaddle = function (moveDiff, vertMove) {
+          console.log('movePaddle');
+          console.log('moveDiff', moveDiff);
+          console.log('rotation', this.object.rotation.z);
           // Convert moveDiff to a value scaled within paddleMoveRate
           if (moveDiff < 0 && Math.abs(moveDiff) > paddleMoveRate) {
             moveDiff = -paddleMoveRate;
-            this.object.rotation.z = Math.min(-moveDiff * .01, -0.1);
           } else if(moveDiff > 0 && moveDiff > paddleMoveRate) {
             moveDiff = paddleMoveRate;
-            this.object.rotation.z = Math.max(-moveDiff * .01, 0.1);
           }
-
+          console.log('modified movediff', moveDiff);
           this.moving = moveDiff;
 
+          var maxPaddleTilt = 0.1,
+            rotationRate = moveDiff * .005;
+          console.log('rotation rate:', rotationRate);
+          console.log('absolute ', Math.abs(this.object.rotation.z - rotationRate));
           
           if (moveDiff !== 0) {
-            // move the paddle by that amount
-            if (moveDiff < 0 && borders.left < this.object.position.x + moveDiff - paddleWidth / 2) {
-              this.object.position.x -= paddleMoveRate * timeSegment;
-            } else if(moveDiff > 0 && borders.right > this.object.position.x + moveDiff + paddleWidth / 2) {
-              this.object.position.x += paddleMoveRate * timeSegment;
+            // move the paddle by that amount, if it's not too close to the wall
+            if (moveDiff < 0 ) {
+              // Rotate the paddle according to current movement (moving left)
+              // @todo add to rotation, up to max rotation factor
+              if (Math.abs(this.object.rotation.z - rotationRate) < maxPaddleTilt) {
+                console.log('rotate for left');
+                this.object.rotation.z -= rotationRate;
+              }
+              // this.object.rotation.z = Math.max(moveDiff * .01, maxPaddleTilt);
+
+              if (borders.left < this.object.position.x + moveDiff - paddleWidth / 2) {
+                this.object.position.x -= paddleMoveRate * timeSegment;
+              }
+            } else if(moveDiff > 0) {
+              // Rotate the paddle according to current movement
+              // @todo subtract from rotation, to min rotation factor
+              // this.object.rotation.z = Math.min(moveDiff * .01, -maxPaddleTilt);
+
+              if (Math.abs(this.object.rotation.z + rotationRate) < maxPaddleTilt) {
+                this.object.rotation.z += rotationRate;
+              }
+
+              if (borders.right > this.object.position.x + moveDiff + paddleWidth / 2) {
+                this.object.position.x += paddleMoveRate * timeSegment;
+              }
+            } else {
+              // @todo tilt closer to 0 rotation
             }
           }
+
+          //if (vertMove !== 0)
+          //this.object.rotation.z = Math.min(moveDiff * .01, 0.1);
+
           camera.position.x = this.object.position.x * .8;
           camera.lookAt(cameraTarget);
         },
@@ -606,7 +651,7 @@ $().ready(function () {
             paddleDeg = self.object.rotation.z;
 
           // The proposed modification to the horizontal momentum
-            modSpeed = ball.momentum.x + (ballMoveRate * -paddleDeg);
+            modSpeed = ball.momentum.x + (ballMoveRate * (paddleDeg*2));
           
           console.log(paddleDeg);
 
@@ -656,7 +701,7 @@ $().ready(function () {
       clickSound = function (clickIndex) {
         // Play a click sound, according to the column
         if (sounds.click[clickIndex]) {
-          sounds.click[clickIndex].load();
+          sounds.click[clickIndex].pause();
           sounds.click[clickIndex].play();
         }
       },
@@ -688,7 +733,7 @@ $().ready(function () {
             ball.reverse('y');
 
             // Play wall sound
-            sounds.wall.play();
+            playWallSound()
           } else if(ball.position.y < borders.bottom + ballSize) {
             //@todo This is the bottom wall,  so there probably should be an event here
             ball.position.y = borders.bottom + ballSize;
@@ -696,7 +741,7 @@ $().ready(function () {
             ball.reverse('y');
 
             // Play wall sound
-            sounds.wall.play();
+            playWallSound();
           }
           if (ball.position.x < borders.left + ballSize) {
             ball.position.x = borders.left + ballSize;
@@ -704,7 +749,7 @@ $().ready(function () {
             ball.reverse('x');
 
             // Play wall sound
-            sounds.wall.play();
+            playWallSound();
 
           } else if (ball.position.x > borders.right - ballSize) {
             ball.position.x = borders.right - ballSize;
@@ -712,7 +757,7 @@ $().ready(function () {
             ball.reverse('x');
 
             // Play wall sound
-            sounds.wall.play();
+            playWallSound();
           }
         }
 
@@ -741,6 +786,14 @@ $().ready(function () {
           }
         }
       },
+
+      playWallSound = function() {
+        // Play wall sound
+        sounds.wall.pause();
+        sounds.wall.play();
+      }
+
+
       doControls = function () {
         // handle controls:    
         window.onmousemove = function (e) {
@@ -756,9 +809,9 @@ $().ready(function () {
           }
           if (e.keyCode === 80) {
             if (gameState === 0) {
-              gameState = 1;
+              togglePause(1);
             } else {
-              gameState = 0;
+              togglePause(0);
             }
           } 
         }
@@ -812,16 +865,24 @@ $().ready(function () {
     // Add a ball
     balls.push(new ball());
 
-    balls.push(new ball({
-      position: new THREE.Vector3(20, 0, 50),
-      color: 0xff0000
-    }));
-
-    balls.push(new ball({
-      position: new THREE.Vector3(20, 0, 100),
-      color: 0xff00ee
-    }));
-
+    setTimeout(
+      function() {
+        balls.push(new ball({
+          position: new THREE.Vector3(20, 0, 50),
+          color: 0xff0000
+        }));
+      },
+      8800
+    );
+    setTimeout(
+      function() {
+        balls.push(new ball({
+          position: new THREE.Vector3(20, 0, 100),
+          color: 0xff00ee
+        }));
+      },
+      12000
+    );
     // Add a paddle
     paddle = new makePaddle();
     targets.push(paddle.object);
@@ -832,7 +893,7 @@ $().ready(function () {
       new THREE.Vector3(0, 150, 550),
       function () {
         // unpause the game
-        gameState = 1;
+        togglePause(1);
       }
     );
 
