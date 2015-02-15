@@ -397,7 +397,7 @@ $().ready(function () {
           } else {
             // Adjust the opacity down towards invisible
             // console.log(this.object);
-            this.object.material.opacity = expTime;
+            // this.object.material.opacity = expTime;
             // console.log(this.object.material.opacity);
           }
           if (this.status === true) {
@@ -428,6 +428,18 @@ $().ready(function () {
        */
       buildLevel = function (levelSpec)
       {
+        var makeLine = function(vertices, material, color) {
+          var lineGeometry = new THREE.Geometry();
+          vertices = (!!vertices.length) ? vertices : [];
+          color    = color || 0x0000ff;
+          material = material || new THREE.LineBasicMaterial({color: color, width:2});
+
+          for (var v in vertices) {
+            lineGeometry.vertices.push(vertices[v]);
+            var line = new THREE.Line(lineGeometry, material);
+            scene.add(line);
+          }
+        }
         // Assign the argument as an object if its null
         levelSpec         = levelSpec || {};
         levelSpec.targets = levelSpec.targets || [];
@@ -446,10 +458,32 @@ $().ready(function () {
             new THREE.Vector3(borders.right, borders.bottom, wallCount * 50),
             new THREE.Vector3(borders.left, borders.bottom, wallCount * 50)  
           );
-          wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
+          var wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
             color: levelSpec.wallColors[wallCount], width:2
           }));
           scene.add(wall);
+
+          // Create the grid lines
+          if (wallCount < 3) {
+            for (var column = -9; column <= 9; column ++) {
+              // create a vertical column line
+              makeLine([
+                   new THREE.Vector3(column * targetWidth, borders.top, wallCount * 50),
+                   new THREE.Vector3(column * targetWidth, borders.bottom, wallCount * 50)
+                ], 
+                new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount]})
+              );
+
+              for (var row = 0; row <= 18; row++) {
+                makeLine([
+                     new THREE.Vector3(borders.left, row * targetHeight * 3, wallCount * 50),
+                     new THREE.Vector3(borders.right,row * targetHeight * 3, wallCount * 50)
+                  ], 
+                  new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount]})
+                );
+              }
+            }
+          }
         }
 
         // Add the default targets
