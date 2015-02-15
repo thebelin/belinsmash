@@ -104,7 +104,7 @@ $().ready(function () {
       scene = new THREE.Scene(),
 
     // the camera points at this
-      cameraTarget = new THREE.Vector3(0, 150, 0),
+      cameraTarget = new THREE.Vector3(0, 125, 0),
       
     // Some light
       light = new THREE.DirectionalLight(0xffffff, .5),
@@ -169,11 +169,11 @@ $().ready(function () {
 
         // set the scene size
         if (window.innerWidth * .56 < window.innerHeight) {
-          width  = window.innerWidth * .98;
+          width  = window.innerWidth;
           height = width * .56;
           marginTop = (window.innerHeight - height) / 2;
         } else {
-          height = window.innerHeight * .98;
+          height = window.innerHeight;
           width  = height * 1.7
           marginLeft = (window.innerWidth - width) / 2;
         }
@@ -291,11 +291,12 @@ $().ready(function () {
         this.object.caster = new THREE.Raycaster();
 
         // This is the follow - shadow, to be shown on the paddle
-        this.object.shadow = new THREE.Sprite(new THREE.SpriteMaterial({color:options.color, fog:true}));
-        // default shadow caster is down
-        //this.object.shadowRay = new THREE.Vector3(0, -1, 0);
-        //this.object.shadowCaster = new THREE.Raycaster();
-
+        this.shadow = new THREE.Mesh(
+          new THREE.CubeGeometry(options.radius / 2, options.radius / 2, options.radius / 2),
+          new THREE.MeshBasicMaterial( {color: options.color} )
+        );
+        this.shadow.position.y = borders.bottom;
+        this.shadow.position.z = this.object.position.z;
         // A function to reverse momentum
         this.object.reverse = function (axis) {
           self.object.debounce = currentMs + 100;
@@ -321,6 +322,8 @@ $().ready(function () {
           self.object.position.x += self.object.momentum.x * timeSegment;
           self.object.position.y += self.object.momentum.y * timeSegment;
           // Project a shadow downward
+          self.shadow.position.x = self.object.position.x;
+
           // self.object.shadowCaster.set(ball.position, ball.shadowRay);
           // self.shadowTargets = ball.caster.intersectObjects(targets);
 
@@ -334,7 +337,7 @@ $().ready(function () {
         // finally, add the object to the scene
         scene.add(this.object);
         // and the shadow
-        scene.add(this.object.shadow);
+        scene.add(this.shadow);
       },
 
       /**
@@ -431,18 +434,22 @@ $().ready(function () {
         levelSpec         = levelSpec || {};
         levelSpec.targets = levelSpec.targets || [];
 
+        levelSpec.wallColors = levelSpec.wallColors && levelSpec.wallColors.length
+                              ? levelSpec.wallColors
+                              : [0xffff00, 0xff0000, 0xff00ee, 0x0000ff, 0x0000ff]
+
         // Create the walls and ceiling lines
-        for (var wallCount = 50; wallCount > 0; wallCount--) {
+        for (var wallCount = 0; wallCount < 5; wallCount++) {
           var lineGeometry = new THREE.Geometry();
           lineGeometry.vertices.push(
-            new THREE.Vector3(borders.left, borders.bottom, wallCount * 10),
-            new THREE.Vector3(borders.left, borders.top, wallCount * 10),
-            new THREE.Vector3(borders.right, borders.top, wallCount * 10),
-            new THREE.Vector3(borders.right, borders.bottom, wallCount * 10),
-            new THREE.Vector3(borders.left, borders.bottom, wallCount * 10)  
+            new THREE.Vector3(borders.left, borders.bottom, wallCount * 50),
+            new THREE.Vector3(borders.left, borders.top, wallCount * 50),
+            new THREE.Vector3(borders.right, borders.top, wallCount * 50),
+            new THREE.Vector3(borders.right, borders.bottom, wallCount * 50),
+            new THREE.Vector3(borders.left, borders.bottom, wallCount * 50)  
           );
           wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
-            color: 0x0000ff, width:2
+            color: levelSpec.wallColors[wallCount], width:2
           }));
           scene.add(wall);
         }
@@ -889,7 +896,7 @@ $().ready(function () {
     
     // Do the fancy intro camera move
     introCamera(
-      new THREE.Vector3(0, 1000, 200),
+      new THREE.Vector3(0, 1000, 150),
       new THREE.Vector3(0, 150, 550),
       function () {
         // unpause the game
