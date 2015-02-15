@@ -271,8 +271,11 @@ $().ready(function () {
         // Assign position
         this.object.position = options.position;
 
-        // Assign the momentum attribute
-        this.object.momentum = options.momentum;
+        // Assign the momentum attribute after a delay
+        self.object.momentum = new THREE.Vector3();
+        setTimeout(function(){
+          self.object.momentum = options.momentum;
+        }, 500);
 
         // The debounce is to keep collisions from being called multiple times
         this.object.debounce = currentMs;
@@ -297,6 +300,8 @@ $().ready(function () {
         );
         this.shadow.position.y = borders.bottom;
         this.shadow.position.z = this.object.position.z;
+
+        //this.shadow.scale = borders.top - this.object.position.y / 10;
         // A function to reverse momentum
         this.object.reverse = function (axis) {
           self.object.debounce = currentMs + 100;
@@ -321,17 +326,10 @@ $().ready(function () {
           // So the animation for this item is to move it by its momentum
           self.object.position.x += self.object.momentum.x * timeSegment;
           self.object.position.y += self.object.momentum.y * timeSegment;
+         
           // Project a shadow downward
           self.shadow.position.x = self.object.position.x;
-
-          // self.object.shadowCaster.set(ball.position, ball.shadowRay);
-          // self.shadowTargets = ball.caster.intersectObjects(targets);
-
-          for (var h in self.shadowTargets) {
-            console.log('shadowTarget', self.shadowTargets[h]);
-            // get the location of the collision and then move the shadow sprite there
-
-          }
+         
         };
 
         // finally, add the object to the scene
