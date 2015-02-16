@@ -14,10 +14,13 @@
 		margin: 0px;
 	}
 	#container{
+		position: absolute;
 		width:400px;
 		height:300px;
 		background: #000;
 		border:solid 1px #000;
+		font-family: arial;
+		color:#fff;
 	}
 	.moveButton {
 		display: none;
@@ -46,20 +49,27 @@
 	#rightButton {
 		right: 5px;
 	}
+	/* Shadowed text: */;
+	#pauseIndicator, #scoreIndicator {
+		text-shadow: 4px 4px 2px rgba(150, 150, 150, 1);
+	}
+
 	#pauseIndicator {
 		display: none;
-		position: absolute;
-		width: 95%;
-		height: 90%;
+		width: 100%;
+		height: 100%;
 		opacity: .7;
 		background-color: #000;
 		text-align: center;
 		font-weight: bold;
 		font-size: 4em;
-		font-family: arial;
-		color:#fff;
 		padding-top: 5em;
-		text-shadow: 4px 4px 2px rgba(150, 150, 150, 1);
+	}
+	#scoreIndicator {
+		position:absolute;
+		top: 1em;
+		right: 1em;
+		font-size:5em;
 	}
 	</style>
 
@@ -78,6 +88,7 @@
 		<div id="leftButton"  class="moveButton"><p>&lt;</p></div>
 		<div id="rightButton" class="moveButton"><p>&gt;</p></div>
 		<div id="pauseIndicator">PAUSED</div>
+		<div id="scoreIndicator">0</div>
 	</div>
 </body>
 </html>

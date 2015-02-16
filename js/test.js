@@ -15,6 +15,9 @@ $().ready(function () {
     // The game is paused
       gameState = 0,
 
+    // The current score of the game
+      gameScore = 0,
+
     // Current ms from real time clock
       currentMs = Date.now(),
 
@@ -57,6 +60,9 @@ $().ready(function () {
     // How wide is each target
       targetWidth = 17,
 
+    // The space between the targets
+      targetBuffer = 2,
+
     // How tall is each target
       targetHeight = 5,
 
@@ -80,6 +86,10 @@ $().ready(function () {
     // The web page element to put the game into;
       $container = $('#container'),
 
+    // A jQuery reference to the scoreIndicator DOM object
+      $scorebox = $container.find('#scoreIndicator'),
+
+    // A collection of sounds from the DOM
       sounds = {
         bump: document.getElementById("soundBump"),
         click: [
@@ -127,17 +137,29 @@ $().ready(function () {
         0x3311bb, 0x3b0cbd, 0x442299,
       ],
 
+    // Linear interpolation between two values
+      lerp = function(min, max, k) {
+        return min + (max - min) * k;
+      },
+
     // A sequence to use camera angles
-      introCamera = function (startLocation, endLocation, onFinish) {
+      introCamera = function (start, end, onFinish) {
         $({alpha: 0}).animate({alpha: 1}, {
           duration: 5000,
           step: function() {
-            camera.position = startLocation.lerp(endLocation, this.alpha)
+            for (var attrib in start) {
+              if (end[attrib] && camera.position[attrib]) {
+                camera.position[attrib] = lerp(start[attrib], end[attrib], this.alpha);
+              }
+            }
+            //camera.position = startLocation.lerp(endLocation, this.alpha)
             camera.lookAt(cameraTarget);
+            console.log(this.alpha, camera.position);
           },
           always: function () {
-            camera.position = endLocation;
-            camera.lookAt(cameraTarget);
+            // camera.position = endLocation;
+            // camera.lookAt(cameraTarget);
+            // console.log(this.alpha, camera.position);
             if (typeof onFinish === 'function') {
               onFinish()
             }
@@ -295,7 +317,7 @@ $().ready(function () {
 
         // This is the follow - shadow, to be shown on the paddle
         this.shadow = new THREE.Mesh(
-          new THREE.CubeGeometry(options.radius / 2, options.radius / 2, options.radius / 2),
+          new THREE.BoxGeometry(options.radius / 2, options.radius / 2, options.radius / 2),
           new THREE.MeshBasicMaterial( {color: options.color} )
         );
         this.shadow.position.y = borders.bottom;
@@ -432,10 +454,11 @@ $().ready(function () {
           var lineGeometry = new THREE.Geometry();
           vertices = (!!vertices.length) ? vertices : [];
           color    = color || 0x0000ff;
-          material = material || new THREE.LineBasicMaterial({color: color, width:2});
+          material = material || new THREE.LineDashedMaterial({color: color, width:2});
 
           for (var v in vertices) {
             lineGeometry.vertices.push(vertices[v]);
+            console.log(material);
             var line = new THREE.Line(lineGeometry, material);
             scene.add(line);
           }
@@ -465,23 +488,31 @@ $().ready(function () {
 
           // Create the grid lines
           if (wallCount < 3) {
-            for (var column = -9; column <= 9; column ++) {
+            for (var column = -8; column <= 9; column ++) {
               // create a vertical column line
               makeLine([
-                   new THREE.Vector3(column * targetWidth, borders.top, wallCount * 50),
-                   new THREE.Vector3(column * targetWidth, borders.bottom, wallCount * 50)
+                   new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.top, wallCount * 50),
+                   new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.bottom, wallCount * 50)
                 ], 
-                new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount]})
+                new THREE.LineDashedMaterial({
+                  color: levelSpec.wallColors[wallCount],
+                  dashSize: 3,
+                  gapSize: 1,
+                  linewidth: .5,
+                  scale: 1,
+                  transparent:true,
+                  opacity:.5
+                })
               );
 
-              for (var row = 0; row <= 18; row++) {
-                makeLine([
-                     new THREE.Vector3(borders.left, row * targetHeight * 3, wallCount * 50),
-                     new THREE.Vector3(borders.right,row * targetHeight * 3, wallCount * 50)
-                  ], 
-                  new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount]})
-                );
-              }
+              // for (var row = 0; row <= 18; row++) {
+              //   makeLine([
+              //        new THREE.Vector3(borders.left, row * targetHeight * 3, wallCount * 50),
+              //        new THREE.Vector3(borders.right,row * targetHeight * 3, wallCount * 50)
+              //     ], 
+              //     new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount], dashSize:10})
+              //   );
+              // }
             }
           }
         }
@@ -520,6 +551,7 @@ $().ready(function () {
        *        {THREE.Mesh}     geometry  *optional* The geometry to use, default is brick
        *        {THREE.Vector3}  size      *optional* if mesh isn't provided, this size
        *        {THREE.Material} material  *optional* The material to display with
+       *        {number}         points    *optional* The number of points for destruction (default 10)
        *        {function}       onCollide *optional* Behavior for collision
        * 
        * @return {target} A functional target for the scene
@@ -546,7 +578,7 @@ $().ready(function () {
             : new THREE.MeshPhongMaterial({
               color: colors[this.column],
               specular: 0xffffff,
-              shininess: 90,
+              shininess: .1,
             }),
 
         /**
@@ -556,7 +588,7 @@ $().ready(function () {
           geometry = 
           (typeof targetOptions.geometry === 'object')
             ? targetOptions.geometry
-            : new THREE.CubeGeometry(size.x, size.y, size.z);
+            : new THREE.BoxGeometry(size.x, size.y, size.z);
 
 
         this.object = new THREE.Mesh(geometry, material);
@@ -579,6 +611,7 @@ $().ready(function () {
         this.object.position.x = -160 + this.object.column * (targetWidth + 2);
         this.object.position.z = this.object.depth * 50;
 
+        this.object.points = targetOptions.points || 10;
 
         // This will be called by the render phase on each pass
         this.onRender = function () {
@@ -611,7 +644,7 @@ $().ready(function () {
       makePaddle = function () {
         var self = this;
         this.object = new THREE.Mesh(
-          new THREE.CubeGeometry(paddleWidth, 1, 200),
+          new THREE.BoxGeometry(paddleWidth, 1, 200),
           new THREE.MeshPhongMaterial( {color: 0x00ff00} )
         ),
 
@@ -676,8 +709,9 @@ $().ready(function () {
           //if (vertMove !== 0)
           //this.object.rotation.z = Math.min(moveDiff * .01, 0.1);
 
-          camera.position.x = this.object.position.x * .8;
           camera.lookAt(cameraTarget);
+          camera.position.x = this.object.position.x * .8;
+          console.log(camera);
         },
 
         // The ball will call this on the paddle when it collides
@@ -735,6 +769,10 @@ $().ready(function () {
         scene.remove(target);
         clickSound(Math.floor(target.column / 3));
         targets.splice(getTargetIndex(target), 1);
+
+        // Get the points and add them to the gameScore
+        gameScore += target.points || 0;
+        $scorebox.html(gameScore);
       },
 
       clickSound = function (clickIndex) {
@@ -885,10 +923,13 @@ $().ready(function () {
     // add the camera to the scene
     scene.add(camera);
 
+    camera.position.z = 500;
+
+    camera.position.y = 200;
     // Add the lights
     light.position.z = 100;
-    light2.position.y = 600;
-    light2.position.z = 200;
+    light2.position.y = 1000;
+    light2.position.z = 100;
     scene.add(light);
     scene.add(light2);
 
