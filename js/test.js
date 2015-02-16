@@ -67,7 +67,7 @@ $().ready(function () {
       targetHeight = 5,
 
     // Maximum move rate of the paddle (per second)
-      paddleMoveRate = 300,
+      paddleMoveRate = 275,
 
     // Starting move rate of the ball (per second)
       ballMoveRate = 150,
@@ -253,6 +253,9 @@ $().ready(function () {
         camera.position.x -= (camera.position.x - camera.desiredPosition.x ) * timeSegment;
         camera.lookAt(cameraTarget);
        
+        // tilt paddle closer to 0 rotation
+        paddle.object.rotation.z -= paddle.object.rotation.z * timeSegment * 10;
+
       },
 
     // The render engine
@@ -499,8 +502,8 @@ $().ready(function () {
             var lineMaterial = new THREE.LineDashedMaterial({
                 color: levelSpec.wallColors[wallCount],
                 dashSize: 1,
-                gapSize: targetHeight * 4`,
-                linewidth: .1,
+                gapSize: targetHeight * 4,
+                linewidth: 2,
                 scale: 1,
                 transparent:true,
                 opacity:.5
@@ -659,63 +662,40 @@ $().ready(function () {
 
         // Script for moving the paddle
         this.movePaddle = function (moveDiff, vertMove) {
-          console.log('movePaddle');
-          console.log('moveDiff', moveDiff);
-          console.log('rotation', this.object.rotation.z);
           // Convert moveDiff to a value scaled within paddleMoveRate
           if (moveDiff < 0 && Math.abs(moveDiff) > paddleMoveRate) {
             moveDiff = -paddleMoveRate;
           } else if(moveDiff > 0 && moveDiff > paddleMoveRate) {
             moveDiff = paddleMoveRate;
           }
-          console.log('modified movediff', moveDiff);
           this.moving = moveDiff;
 
-          var maxPaddleTilt = 0.1,
-            rotationRate = moveDiff * .005;
-          console.log('rotation rate:', rotationRate);
-          console.log('absolute ', Math.abs(this.object.rotation.z - rotationRate));
+          var maxPaddleTilt = 0.2,
+            rotationRate = moveDiff * -.005;
           
           if (moveDiff !== 0) {
+            // Rotate the paddle according to current movement
+            if (Math.abs(this.object.rotation.z + rotationRate) < maxPaddleTilt) {
+              this.object.rotation.z += rotationRate;
+            }
             // move the paddle by that amount, if it's not too close to the wall
             if (moveDiff < 0 ) {
-              // Rotate the paddle according to current movement (moving left)
-              // @todo add to rotation, up to max rotation factor
-              if (Math.abs(this.object.rotation.z - rotationRate) < maxPaddleTilt) {
-                console.log('rotate for left');
-                this.object.rotation.z -= rotationRate;
-              }
-              // this.object.rotation.z = Math.max(moveDiff * .01, maxPaddleTilt);
-
               if (borders.left < this.object.position.x + moveDiff - paddleWidth / 2) {
                 this.object.position.x -= paddleMoveRate * timeSegment;
               }
             } else if(moveDiff > 0) {
-              // Rotate the paddle according to current movement
-              // @todo subtract from rotation, to min rotation factor
-              // this.object.rotation.z = Math.min(moveDiff * .01, -maxPaddleTilt);
-
-              if (Math.abs(this.object.rotation.z + rotationRate) < maxPaddleTilt) {
-                this.object.rotation.z += rotationRate;
-              }
 
               if (borders.right > this.object.position.x + moveDiff + paddleWidth / 2) {
                 this.object.position.x += paddleMoveRate * timeSegment;
               }
-            } else {
-              // @todo tilt closer to 0 rotation
             }
           }
-
-          //if (vertMove !== 0)
-          //this.object.rotation.z = Math.min(moveDiff * .01, 0.1);
 
           camera.desiredPosition.x = this.object.position.x * .8;
         },
 
         // The ball will call this on the paddle when it collides
         this.object.onCollide = function (collided, projector, ball) {
-          console.log('paddleCollide');
           // The maximum horizontal momentum absolute value
           var maxSpeed = (ballMoveRate * .75),
 
@@ -723,10 +703,8 @@ $().ready(function () {
             paddleDeg = self.object.rotation.z;
 
           // The proposed modification to the horizontal momentum
-            modSpeed = ball.momentum.x + (ballMoveRate * (paddleDeg*2));
+            modSpeed = ball.momentum.x - (ballMoveRate * (paddleDeg*2));
           
-          console.log(paddleDeg);
-
           // Reverse the vertical direction of the ball
           if (ball.momentum.y < 0) {
             ball.reverse('y');
