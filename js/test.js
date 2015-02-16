@@ -118,7 +118,7 @@ $().ready(function () {
       
     // Some light
       light = new THREE.DirectionalLight(0xffffff, .5),
-      light2 = new THREE.PointLight(0xffffff, 1, 3000),
+      light2 = new THREE.PointLight(0xffffff, 1, 4000),
 
     // the paddle to hit the ball with
       paddle = null,
@@ -144,22 +144,23 @@ $().ready(function () {
 
     // A sequence to use camera angles
       introCamera = function (start, end, onFinish) {
-        $({alpha: 0}).animate({alpha: 1}, {
-          duration: 5000,
-          step: function() {
-            for (var attrib in start) {
-              if (end[attrib] && camera.position[attrib]) {
-                camera.position[attrib] = lerp(start[attrib], end[attrib], this.alpha);
-              }
+        var doAttribs = function(alpha) {
+          for (var attrib in start) {
+            if (end[attrib] && camera.position[attrib]) {
+              camera.position[attrib] = lerp(start[attrib], end[attrib], alpha);
+              camera.lookAt(cameraTarget);
             }
-            //camera.position = startLocation.lerp(endLocation, this.alpha)
-            camera.lookAt(cameraTarget);
-            console.log(this.alpha, camera.position);
+          }
+        }
+
+        $({alpha: 0}).animate({alpha: 1}, {
+          duration: 2000,
+          easing: 'linear',
+          step: function() {
+            doAttribs(this.alpha);
           },
           always: function () {
-            // camera.position = endLocation;
-            // camera.lookAt(cameraTarget);
-            // console.log(this.alpha, camera.position);
+            doAttribs(this.alpha);
             if (typeof onFinish === 'function') {
               onFinish()
             }
@@ -247,6 +248,11 @@ $().ready(function () {
         while (this.pCount--) {
           parts[this.pCount].update();
         }
+
+        // Migrate the camera towards the desired x position
+        camera.position.x -= (camera.position.x - camera.desiredPosition.x ) * timeSegment;
+        camera.lookAt(cameraTarget);
+       
       },
 
     // The render engine
@@ -281,7 +287,7 @@ $().ready(function () {
         options          = options          || {};
         options.radius   = options.radius   || ballSize;
         options.color    = options.color    || 0xffff00;
-        options.momentum = options.momentum || new THREE.Vector3(ballMoveRate / 3, -ballMoveRate, 0);
+        options.momentum = options.momentum || new THREE.Vector3(ballMoveRate / 3, ballMoveRate, 0);
         options.position = options.position || new THREE.Vector3();
 
         // Assign the mesh
@@ -291,7 +297,9 @@ $().ready(function () {
         );
 
         // Assign position
-        this.object.position = options.position;
+        this.object.position.x = options.position.x;
+        this.object.position.y = options.position.y;
+        this.object.position.z = options.position.z;
 
         // Assign the momentum attribute after a delay
         self.object.momentum = new THREE.Vector3();
@@ -395,9 +403,9 @@ $().ready(function () {
           dirs.push(itemMomentum);
         }
         
-        particles = new THREE.ParticleSystem(
+        particles = new THREE.PointCloud(
           geometry,
-          new THREE.ParticleBasicMaterial( { size: objectSize,  color: color, opacity: .7})
+          new THREE.PointCloudMaterial( { size: objectSize,  color: color, opacity: .7})
         );
         
         this.object = particles;
@@ -458,10 +466,10 @@ $().ready(function () {
 
           for (var v in vertices) {
             lineGeometry.vertices.push(vertices[v]);
-            console.log(material);
-            var line = new THREE.Line(lineGeometry, material);
-            scene.add(line);
           }
+          lineGeometry.computeLineDistances();
+          var line = new THREE.Line(lineGeometry, material);
+          scene.add(line);
         }
         // Assign the argument as an object if its null
         levelSpec         = levelSpec || {};
@@ -488,31 +496,24 @@ $().ready(function () {
 
           // Create the grid lines
           if (wallCount < 3) {
+            var lineMaterial = new THREE.LineDashedMaterial({
+                color: levelSpec.wallColors[wallCount],
+                dashSize: 1,
+                gapSize: targetHeight * 4`,
+                linewidth: .1,
+                scale: 1,
+                transparent:true,
+                opacity:.5
+              });
             for (var column = -8; column <= 9; column ++) {
               // create a vertical column line
-              makeLine([
+              makeLine(
+                [
                    new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.top, wallCount * 50),
                    new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.bottom, wallCount * 50)
                 ], 
-                new THREE.LineDashedMaterial({
-                  color: levelSpec.wallColors[wallCount],
-                  dashSize: 3,
-                  gapSize: 1,
-                  linewidth: .5,
-                  scale: 1,
-                  transparent:true,
-                  opacity:.5
-                })
+                lineMaterial
               );
-
-              // for (var row = 0; row <= 18; row++) {
-              //   makeLine([
-              //        new THREE.Vector3(borders.left, row * targetHeight * 3, wallCount * 50),
-              //        new THREE.Vector3(borders.right,row * targetHeight * 3, wallCount * 50)
-              //     ], 
-              //     new THREE.LineDashedMaterial({color: levelSpec.wallColors[wallCount], dashSize:10})
-              //   );
-              // }
             }
           }
         }
@@ -709,9 +710,7 @@ $().ready(function () {
           //if (vertMove !== 0)
           //this.object.rotation.z = Math.min(moveDiff * .01, 0.1);
 
-          camera.lookAt(cameraTarget);
-          camera.position.x = this.object.position.x * .8;
-          console.log(camera);
+          camera.desiredPosition.x = this.object.position.x * .8;
         },
 
         // The ball will call this on the paddle when it collides
@@ -913,6 +912,7 @@ $().ready(function () {
       };
     // End var declaration for main function body
 
+
     // Run the resizer and link it to the window resize event
     sizer();
     window.onresize = function() {
@@ -926,10 +926,13 @@ $().ready(function () {
     camera.position.z = 500;
 
     camera.position.y = 200;
+
+    camera.desiredPosition = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);  
     // Add the lights
-    light.position.z = 100;
-    light2.position.y = 1000;
-    light2.position.z = 100;
+    light.position.y = 500;
+    light.position.z = 1000;
+    light2.position.y = 500;
+    light2.position.z = 200;
     scene.add(light);
     scene.add(light2);
 
