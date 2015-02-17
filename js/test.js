@@ -18,6 +18,9 @@ $().ready(function () {
     // The current score of the game
       gameScore = 0,
 
+    // Where in the array of levels is the player?
+      levelIndex = 0,
+
     // Current ms from real time clock
       currentMs = Date.now(),
 
@@ -41,6 +44,9 @@ $().ready(function () {
         bottom: -50,
         top:    300
       },
+
+    // Whether the walls are built
+      wallsBuilt = false,
 
     // An array of targets to hit
       targets = [],
@@ -334,7 +340,6 @@ $().ready(function () {
         this.shadow.position.y = borders.bottom;
         this.shadow.position.z = this.object.position.z;
 
-        //this.shadow.scale = borders.top - this.object.position.y / 10;
         // A function to reverse momentum
         this.object.reverse = function (axis) {
           self.object.debounce = currentMs + 100;
@@ -394,7 +399,7 @@ $().ready(function () {
           vertex = new THREE.Vector3();
           vertex.x = x;
           vertex.y = y;
-          vertex.z = 0;
+          vertex.z = z;
         
           geometry.vertices.push(vertex);
 
@@ -462,16 +467,17 @@ $().ready(function () {
       buildLevel = function (levelSpec)
       {
         var makeLine = function(vertices, material, color) {
-          var lineGeometry = new THREE.Geometry();
+          var lineGeometry = new THREE.Geometry(), line, v;
+
           vertices = (!!vertices.length) ? vertices : [];
           color    = color || 0x0000ff;
           material = material || new THREE.LineDashedMaterial({color: color, width:2});
 
-          for (var v in vertices) {
+          for (v in vertices) {
             lineGeometry.vertices.push(vertices[v]);
           }
           lineGeometry.computeLineDistances();
-          var line = new THREE.Line(lineGeometry, material);
+          line = new THREE.Line(lineGeometry, material);
           scene.add(line);
         }
         // Assign the argument as an object if its null
@@ -482,41 +488,44 @@ $().ready(function () {
                               ? levelSpec.wallColors
                               : [0xffff00, 0xff0000, 0xff00ee, 0x0000ff, 0x0000ff]
 
-        // Create the walls and ceiling lines
-        for (var wallCount = 0; wallCount < 5; wallCount++) {
-          var lineGeometry = new THREE.Geometry();
-          lineGeometry.vertices.push(
-            new THREE.Vector3(borders.left, borders.bottom, wallCount * 50),
-            new THREE.Vector3(borders.left, borders.top, wallCount * 50),
-            new THREE.Vector3(borders.right, borders.top, wallCount * 50),
-            new THREE.Vector3(borders.right, borders.bottom, wallCount * 50),
-            new THREE.Vector3(borders.left, borders.bottom, wallCount * 50)  
-          );
-          var wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
-            color: levelSpec.wallColors[wallCount], width:2
-          }));
-          scene.add(wall);
+        if (!wallsBuilt) {
+          wallsBuilt = true;
+          // Create the walls and ceiling lines
+          for (var wallCount = 0; wallCount < 5; wallCount++) {
+            var lineGeometry = new THREE.Geometry();
+            lineGeometry.vertices.push(
+              new THREE.Vector3(borders.left, borders.bottom, wallCount * 50),
+              new THREE.Vector3(borders.left, borders.top, wallCount * 50),
+              new THREE.Vector3(borders.right, borders.top, wallCount * 50),
+              new THREE.Vector3(borders.right, borders.bottom, wallCount * 50),
+              new THREE.Vector3(borders.left, borders.bottom, wallCount * 50)  
+            );
+            var wall = new THREE.Line( lineGeometry, new THREE.LineBasicMaterial({
+              color: levelSpec.wallColors[wallCount], width:2
+            }));
+            scene.add(wall);
 
-          // Create the grid lines
-          if (wallCount < 3) {
-            var lineMaterial = new THREE.LineDashedMaterial({
-                color: levelSpec.wallColors[wallCount],
-                dashSize: 1,
-                gapSize: targetHeight * 4,
-                linewidth: 2,
-                scale: 1,
-                transparent:true,
-                opacity:.5
-              });
-            for (var column = -8; column <= 9; column ++) {
-              // create a vertical column line
-              makeLine(
-                [
-                   new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.top, wallCount * 50),
-                   new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.bottom, wallCount * 50)
-                ], 
-                lineMaterial
-              );
+            // Create the grid lines
+            if (wallCount < 3) {
+              var lineMaterial = new THREE.LineDashedMaterial({
+                  color: levelSpec.wallColors[wallCount],
+                  dashSize: 1,
+                  gapSize: targetHeight * 4,
+                  linewidth: 2,
+                  scale: 1,
+                  transparent:true,
+                  opacity:.5
+                });
+              for (var column = -8; column < 10; column ++) {
+                // create a vertical column line
+                makeLine(
+                  [
+                     new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.top, wallCount * 50),
+                     new THREE.Vector3((column - .5) * (targetWidth + targetBuffer), borders.bottom, wallCount * 50)
+                  ], 
+                  lineMaterial
+                );
+              }
             }
           }
         }
@@ -540,7 +549,10 @@ $().ready(function () {
             }
           }
         } else {
-          //@todo iterate the targets provided and add them according to specification
+          // Iterate the targets provided and add them according to specification
+          for (var x = 0,targetLength = levelSpec.targets.length; x < targetLength; x++) {
+            targets.push(new target(levelSpec.targets[x]).object);
+          }
         }
       },
 
@@ -580,7 +592,7 @@ $().ready(function () {
           (typeof targetOptions.material === 'object')
             ? targetOptions.material
             : new THREE.MeshPhongMaterial({
-              color: colors[this.column],
+              color: colors[targetOptions.column],
               specular: 0xffffff,
               shininess: .1,
             }),
@@ -750,6 +762,12 @@ $().ready(function () {
         // Get the points and add them to the gameScore
         gameScore += target.points || 0;
         $scorebox.html(gameScore);
+
+
+        // If there are no more targets (only paddle), go on to the next level
+        if (targets.length === 1) {
+          nextLevel();
+        }
       },
 
       clickSound = function (clickIndex) {
@@ -887,6 +905,32 @@ $().ready(function () {
           touch.x = touch.pageX;
           cursorMove(touch);
         });
+      },
+
+      // Load the next level
+      nextLevel = function() {
+        gameState = 0;
+        // Do the fancy intro camera move
+        introCamera(
+          new THREE.Vector3(0, 150, 550),
+          new THREE.Vector3(0, 1000, 150),
+          function () {
+            var levelSpec = {};
+            if (window.levels.length >= levelIndex + 1) {
+              levelSpec = window.levels[levelIndex];
+            }
+            levelIndex++;
+            buildLevel(levelSpec);
+            introCamera(
+              new THREE.Vector3(0, 1000, 150),
+              new THREE.Vector3(0, 150, 550),
+              function () {
+                // unpause the game
+                togglePause(1);
+              }
+            );
+          }
+        );
       };
     // End var declaration for main function body
 
@@ -920,8 +964,17 @@ $().ready(function () {
     // attach the render-supplied DOM element
     $container.append(renderer.domElement);
 
-    // Build the level (walls & targets)
-    buildLevel();
+    //levelIndex = -1;
+    nextLevel();
+
+    // // Build the level (walls & targets)
+    // if (window.levels && window.levels.length > levelIndex) {
+    //   console.log('loading');
+    //   buildLevel(window.levels[levelIndex]);
+    // } else {
+    //   // There's no level to load, build the default level
+    //   buildLevel();
+    // }
 
     // Add a ball
     balls.push(new ball());
@@ -949,14 +1002,14 @@ $().ready(function () {
     targets.push(paddle.object);
     
     // Do the fancy intro camera move
-    introCamera(
-      new THREE.Vector3(0, 1000, 150),
-      new THREE.Vector3(0, 150, 550),
-      function () {
-        // unpause the game
-        togglePause(1);
-      }
-    );
+    // introCamera(
+    //   new THREE.Vector3(0, 1000, 150),
+    //   new THREE.Vector3(0, 150, 550),
+    //   function () {
+    //     // unpause the game
+    //     togglePause(1);
+    //   }
+    // );
 
     // Set up the control events
     doControls();
