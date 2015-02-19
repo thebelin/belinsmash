@@ -1,0 +1,115 @@
+<html>
+<head>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+	<script src="js/levelEditor.js"></script>
+</head>
+
+<style>
+body {
+	margin: 0px;
+}
+#levelEditor {
+	width: 100%;
+}
+.targetItem {
+	float: left;
+	width: 4%;
+	height: 20px;
+	border: 1px solid #000;
+}
+
+.targetRow {
+	width: 100%;
+	clear: both;
+	float: none;
+}
+
+.targetItem[data-column="0"][data-active="1"] {
+	background-color: #f80c12;
+}
+.targetItem[data-column="1"][data-active="1"] {
+	background-color: #ee1100;
+}
+.targetItem[data-column="2"][data-active="1"] {
+	background-color: #ff3311;
+}
+.targetItem[data-column="3"][data-active="1"] {
+	background-color: #ff4422;
+}
+.targetItem[data-column="4"][data-active="1"] {
+	background-color: #ff6644;
+}
+.targetItem[data-column="5"][data-active="1"] {
+	background-color: #ff9933;
+}
+.targetItem[data-column="6"][data-active="1"] {
+	background-color: #feae2d;
+}
+.targetItem[data-column="7"][data-active="1"] {
+	background-color: #ccbb33;
+}
+.targetItem[data-column="8"][data-active="1"] {
+	background-color: #d0c310;
+}
+.targetItem[data-column="9"][data-active="1"] {
+	background-color: #aacc22;
+}
+.targetItem[data-column="10"][data-active="1"] {
+	background-color: #69d025;
+}
+.targetItem[data-column="11"][data-active="1"] {
+	background-color: #22ccaa;
+}
+.targetItem[data-column="12"][data-active="1"] {
+	background-color: #12bdb9;
+}
+.targetItem[data-column="13"][data-active="1"] {
+	background-color: #11aabb;
+}
+.targetItem[data-column="14"][data-active="1"] {
+	background-color: #4444dd;
+}
+.targetItem[data-column="15"][data-active="1"] {
+	background-color: #3311bb;
+}
+.targetItem[data-column="16"][data-active="1"] {
+	background-color: #3b0cbd;
+}
+.targetItem[data-column="17"][data-active="1"] {
+	background-color: #442299;
+}
+.preview-item {
+	width: 15%;
+	height: 200px;
+	border: 1px solid #000;
+	float:right;
+}
+
+
+</style>
+<body>
+
+<!-- Level editor -->
+<div id="levelEditor">
+	<div>
+		<div class="targetRow">
+			Depth
+		</div>
+		<div class="targetRow">
+			<input class="depthLevel" type="radio" value="0" name="depth" checked="checked">0
+			<input class="depthLevel" type="radio" value="1" name="depth">1
+			<input class="depthLevel" type="radio" value="2" name="depth">2
+		</div>
+	</div>
+	<div>
+		<div class="target-container"></div>
+		<div class="level-previews">
+			<div data-depth="0" class="preview-item"></div>
+			<div data-depth="1" class="preview-item"></div>
+			<div data-depth="2" class="preview-item"></div>
+		</div>
+	</div>
+</div>
+<!-- End level editor -->
+
+</body>

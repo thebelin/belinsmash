@@ -1000,16 +1000,6 @@ $().ready(function () {
     // Add a paddle
     paddle = new makePaddle();
     targets.push(paddle.object);
-    
-    // Do the fancy intro camera move
-    // introCamera(
-    //   new THREE.Vector3(0, 1000, 150),
-    //   new THREE.Vector3(0, 150, 550),
-    //   function () {
-    //     // unpause the game
-    //     togglePause(1);
-    //   }
-    // );
 
     // Set up the control events
     doControls();
